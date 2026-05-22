@@ -1,0 +1,39 @@
+{
+  "name": "aikb-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "scripts": {
+    "dev": "next dev --port 3300",
+    "build": "next build",
+    "start": "next start --port 3300",
+    "lint": "eslint",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
+  },
+  "dependencies": {
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "@microsoft/fetch-event-source": "^2.0.1",
+    "zustand": "^5.0.2",
+    "lucide-react": "^0.460.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "rehype-highlight": "^7.0.1",
+    "highlight.js": "^11.10.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.5",
+    "class-variance-authority": "^0.7.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "prettier": "^3.4.2"
+  }
+}

@@ -1,0 +1,31 @@
+# Node 依赖（由 Dockerfile 内 pnpm install 重新安装）
+node_modules/
+.pnpm-store/
+
+# Next.js 构建产物
+.next/
+out/
+build/
+
+# 测试 / 缓存
+coverage/
+.cache/
+*.log
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# 已有的 Docker 文件
+Dockerfile
+.dockerignore

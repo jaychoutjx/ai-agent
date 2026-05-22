@@ -1,0 +1,88 @@
+[project]
+name = "aikb-backend"
+version = "0.1.0"
+description = "企业级智能知识库问答系统 - 后端"
+requires-python = ">=3.11,<3.13"
+readme = "README.md"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+
+dependencies = [
+    # ========== Web 框架 ==========
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+    "sse-starlette>=2.1.3",
+    # ========== 配置与工具 ==========
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.1",
+    "loguru>=0.7.2",
+    "httpx>=0.27.2",
+    "tenacity>=9.0.0",
+    # ========== LangChain 全家桶 ==========
+    "langchain>=0.3.7",
+    "langchain-core>=0.3.15",
+    "langchain-community>=0.3.5",
+    "langchain-openai>=0.2.6",
+    "langchain-text-splitters>=0.3.2",
+    "langgraph>=0.2.45",
+    "langgraph-checkpoint>=2.0.2",
+    # ========== 可观测性 ==========
+    "langfuse>=2.53.0",
+    # ========== 向量数据库（Milvus） ==========
+    "pymilvus>=2.4.9",
+    "langchain-milvus>=0.1.7",
+    # ========== 关系数据库 ==========
+    "sqlalchemy>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    # ========== Redis（缓存 + 语义缓存） ==========
+    "redis>=5.2.0",
+    # ========== 文档解析 ==========
+    "pypdf>=5.1.0",
+    "python-docx>=1.1.2",
+    "openpyxl>=3.1.5",
+    "markdown>=3.7",
+    "unstructured>=0.16.5",
+    "beautifulsoup4>=4.12.3",
+    # ========== 检索算法 ==========
+    "rank-bm25>=0.2.2",
+    "jieba>=0.42.1",
+    # ========== 鉴权 ==========
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    # ========== 异步任务 ==========
+    "celery>=5.4.0",
+    "tavily-python>=0.7.24",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.7.4",
+    "mypy>=1.13.0",
+    "ipython>=8.29.0",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

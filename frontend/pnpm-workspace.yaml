@@ -1,0 +1,5 @@
+# pnpm 11+ 配置文件
+# 允许这些 native 包执行构建脚本（编译原生 binding）
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

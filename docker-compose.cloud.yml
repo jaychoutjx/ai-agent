@@ -1,0 +1,93 @@
+# ===================================================================
+# AI 知识库问答系统 - 云部署版（Zilliz Cloud + 阿里云百炼）
+#
+# 与 docker-compose.yml 的区别：
+#   ❌ 不跑本地 Milvus / etcd / minio（节省 ~2GB 内存）
+#   ✅ 向量库使用 Zilliz Cloud（云端托管，免费版 5GB）
+#   ✅ 只跑 backend + frontend 两个服务
+#
+# 适用场景：
+#   - 生产部署到小内存服务器（2GB 内存就够）
+#   - 云原生架构演示
+#
+# 用法：
+#   docker compose -f docker-compose.cloud.yml up -d
+#   docker compose -f docker-compose.cloud.yml logs -f backend
+#   docker compose -f docker-compose.cloud.yml down
+#
+# 前置条件：
+#   1. .env 中已配置 MILVUS_URI 和 MILVUS_TOKEN（Zilliz 控制台拿）
+#   2. .env 中已配置 DASHSCOPE_API_KEY（阿里云百炼）
+#
+# 端口：
+#   - 后端 API:  8800（http://localhost:8800/docs）
+#   - 前端 Web:  3300（http://localhost:3300）
+# ===================================================================
+
+services:
+  # ─────────────────────────────────────────────
+  # 后端：FastAPI + LangChain + LangGraph
+  # 向量库连云端 Zilliz，模型走阿里云百炼
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aikb-backend
+    env_file: .env
+    environment:
+      # 应用监听
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8800
+      # 注：本地 Milvus 配置 (MILVUS_HOST/PORT) 保留 .env 中的默认值，
+      #     代码会根据 MILVUS_URI 是否配置自动切换到 Zilliz Cloud
+      # CORS：允许容器化前端 + 浏览器 localhost 访问
+      CORS_ORIGINS: "http://localhost:3300,http://127.0.0.1:3300,http://frontend:3300"
+    ports:
+      - "8800:8800"
+    volumes:
+      # 上传文件 + 文档元数据持久化（容器重启不丢）
+      - backend-uploads:/app/uploads
+      - backend-data:/app/data
+    networks:
+      - aikb-net
+    restart: unless-stopped
+    healthcheck:
+      # 用 Python 内置 urllib，不依赖 curl/wget（slim 镜像默认没装这些）
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8800/api/v1/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ─────────────────────────────────────────────
+  # 前端：Next.js
+  # 通过浏览器访问 backend 8800（不走 docker 内网）
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # 浏览器最终访问的 API 地址（host 上的 localhost）
+        # 部署到服务器时改成 https://your-domain.com 或 http://server-ip:8800
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8800}
+    container_name: aikb-frontend
+    ports:
+      - "3300:3300"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - aikb-net
+    restart: unless-stopped
+
+
+networks:
+  aikb-net:
+    driver: bridge
+
+
+volumes:
+  backend-uploads:
+  backend-data:

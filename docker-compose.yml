@@ -1,0 +1,148 @@
+# ===================================================================
+# AI 知识库问答系统 - 全栈一键启动
+#
+# 用法：
+#   docker compose up -d           # 后台启动全部服务
+#   docker compose logs -f backend # 查看后端日志
+#   docker compose down            # 停止（数据保留）
+#   docker compose down -v         # 停止并清空数据（重置）
+#
+# 服务：
+#   - etcd       : Milvus 元数据存储
+#   - minio      : Milvus 对象存储
+#   - milvus     : 向量数据库（standalone 模式）
+#   - backend    : FastAPI 后端 (8800)
+#   - frontend   : Next.js 前端 (3300)
+# ===================================================================
+
+services:
+  # ─────────────────────────────────────────────
+  # Milvus 三件套：etcd + minio + milvus 主节点
+  # ─────────────────────────────────────────────
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: aikb-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    command: >
+      etcd -advertise-client-urls=http://etcd:2379
+           -listen-client-urls http://0.0.0.0:2379
+           --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - aikb-net
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    container_name: aikb-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      # Console（可选，9001 网页 UI）
+      - "9001:9001"
+    volumes:
+      - minio-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - aikb-net
+
+  milvus:
+    image: milvusdb/milvus:v2.5.14
+    container_name: aikb-milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - milvus-data:/var/lib/milvus
+    ports:
+      - "19530:19530"  # gRPC
+      - "9091:9091"    # HTTP / metrics
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      - etcd
+      - minio
+    networks:
+      - aikb-net
+
+  # ─────────────────────────────────────────────
+  # 后端：FastAPI + LangChain + LangGraph
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aikb-backend
+    env_file: .env
+    environment:
+      # 容器间用服务名通信，覆盖 .env 里的 localhost
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8800
+      # CORS：允许容器化前端访问
+      CORS_ORIGINS: "http://localhost:3300,http://127.0.0.1:3300,http://frontend:3300"
+    ports:
+      - "8800:8800"
+    volumes:
+      # 上传文件 + 文档元数据持久化（重启不丢）
+      - backend-uploads:/app/uploads
+      - backend-data:/app/data
+    depends_on:
+      milvus:
+        condition: service_healthy
+    networks:
+      - aikb-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # 前端：Next.js 16
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # 浏览器最终访问的 API 地址（host 网络 localhost:8800）
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8800
+    container_name: aikb-frontend
+    ports:
+      - "3300:3300"
+    depends_on:
+      - backend
+    networks:
+      - aikb-net
+    restart: unless-stopped
+
+
+networks:
+  aikb-net:
+    driver: bridge
+
+
+volumes:
+  etcd-data:
+  minio-data:
+  milvus-data:
+  backend-uploads:
+  backend-data:
