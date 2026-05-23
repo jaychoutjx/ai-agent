@@ -42,10 +42,10 @@ interface ChatState {
   clear: () => void;
 }
 
-// 打字机参数
-const TYPEWRITER_INTERVAL_MS = 25; // 每 25ms 推一次（约 40fps）
+// 打字机参数（节奏接近 ChatGPT：约每秒 25 字）
+const TYPEWRITER_INTERVAL_MS = 40; // 每 40ms 推一次（每秒 25 帧）
 const TYPEWRITER_MIN_CHARS = 1; // 每次至少推 1 字
-const TYPEWRITER_MAX_CHARS = 8; // 堆积太多时，每次最多推 8 字（防止落后太远）
+const TYPEWRITER_MAX_CHARS = 3; // 堆积太多时，每次最多推 3 字（保留逐字节奏，绝不"一段一段跳"）
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
@@ -71,13 +71,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { pendingBuffer } = get();
       if (!pendingBuffer) return;
 
-      // 自适应步长：buffer 堆积越多，吃得越快
+      // 自适应步长：buffer 堆积越多吃得越快，但封顶 MAX_CHARS 保留逐字节奏
+      // - 堆积 < 150 字：每次只吐 1 字（标准打字机）
+      // - 堆积 150-500：每次吐 2 字（轻微加速）
+      // - 堆积 > 500：每次吐 3 字（追赶，避免长回答慢吞吞）
       const len = pendingBuffer.length;
       const step =
-        len > 200
+        len > 500
           ? TYPEWRITER_MAX_CHARS
-          : len > 50
-            ? Math.min(TYPEWRITER_MAX_CHARS, Math.ceil(len / 25))
+          : len > 150
+            ? 2
             : TYPEWRITER_MIN_CHARS;
 
       const take = pendingBuffer.slice(0, step);
