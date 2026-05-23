@@ -655,7 +655,7 @@ function DormImitateSubMode() {
         {(reply || loading) && (
           <div className="rounded-2xl border border-rose-100 bg-white p-4 sm:p-6">
             <div className="mb-2 text-xs font-medium text-rose-600">
-              🎭 {target} 的"AI 替身":
+              🎭 {target} 的「AI 替身」
             </div>
             <div className="text-base leading-relaxed text-gray-900">
               {reply}
