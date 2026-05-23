@@ -44,7 +44,7 @@ export function MessageBubble({ message }: Props) {
   return (
     <div
       className={cn(
-        "flex gap-3 px-4 py-5",
+        "flex gap-2 px-3 py-4 sm:gap-3 sm:px-4 sm:py-5",
         isUser ? "flex-row-reverse" : "flex-row",
       )}
     >
@@ -59,7 +59,12 @@ export function MessageBubble({ message }: Props) {
         {isUser ? <User size={18} /> : <Bot size={18} />}
       </div>
 
-      <div className={cn("max-w-[75%]", isUser ? "items-end" : "items-start")}>
+      <div
+        className={cn(
+          "min-w-0 max-w-[85%] sm:max-w-[75%]",
+          isUser ? "items-end" : "items-start",
+        )}
+      >
         {hasToolCalls && <AgentTrace toolCalls={message.tool_calls!} />}
         <div
           className={cn(

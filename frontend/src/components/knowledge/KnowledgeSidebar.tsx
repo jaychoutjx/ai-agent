@@ -103,7 +103,18 @@ export function KnowledgeSidebar({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <aside className="flex h-full w-80 flex-col border-r border-gray-200 bg-white">
+    <>
+      {/* 移动端遮罩层：点击关闭侧边栏（避免侧边栏占满屏后无法回到对话） */}
+      <div
+        className="fixed inset-0 z-30 bg-black/30 sm:hidden"
+        onClick={onClose}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-sm flex-col border-r border-gray-200 bg-white shadow-xl",
+          "sm:relative sm:z-auto sm:w-80 sm:shadow-none",
+        )}
+      >
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div className="flex items-center gap-2">
           <BookOpen className="text-purple-500" size={18} />
@@ -273,6 +284,7 @@ export function KnowledgeSidebar({ onClose }: { onClose: () => void }) {
           </ul>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
