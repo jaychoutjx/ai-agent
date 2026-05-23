@@ -39,6 +39,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8800
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
+# 启用 standalone 输出模式（Docker 部署专用；Vercel 部署不要设）
+ENV NEXT_OUTPUT_MODE=standalone
+
 RUN pnpm build
 
 # ============== Stage 3: runner ==============
