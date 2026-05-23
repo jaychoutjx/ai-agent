@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "pnpm install --frozen-lockfile",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://101.133.150.153:8800/api/:path*"
+    }
+  ]
 }
