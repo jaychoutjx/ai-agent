@@ -4,7 +4,7 @@
 
 export type Role = "user" | "assistant" | "system";
 
-export type ChatMode = "chat" | "rag" | "agent";
+export type ChatMode = "chat" | "rag" | "agent" | "dorm";
 
 export interface AgentToolCall {
   id: string;
@@ -22,6 +22,8 @@ export interface ChatMessage {
   streaming?: boolean;
   /** 引用的知识库片段（RAG 模式使用） */
   citations?: Citation[];
+  /** 引用的寝室会话片段（dorm 模式使用） */
+  dormCitations?: DormCitation[];
   /** Agent 的工具调用历史 */
   tool_calls?: AgentToolCall[];
   createdAt: number;
@@ -93,4 +95,50 @@ export interface AgentRequest {
   history?: { role: Role; content: string }[];
   document_ids?: string[] | null;
   stream?: boolean;
+}
+
+// ========== 寝室群聊 RAG ==========
+
+/** 寝室会话片段（检索命中的引用） */
+export interface DormCitation {
+  session_id: string;
+  start_time: string;
+  end_time: string;
+  participants: string[];
+  content: string;
+  score: number;
+}
+
+export interface DormQueryRequest {
+  question: string;
+  top_k?: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  participants?: string[] | null;
+  history?: { role: Role; content: string }[];
+  stream?: boolean;
+}
+
+export interface DormSummaryRequest {
+  range: "day" | "week" | "month" | "all";
+  end_date?: string | null;
+}
+
+export interface DormImitateRequest {
+  target_member: string;
+  user_message: string;
+  stream?: boolean;
+}
+
+export interface DormStats {
+  total_sessions: number;
+  total_messages: number;
+  members: { name: string; message_count: number; avg_length: number }[];
+  time_range: { start: string | null; end: string | null };
+  indexed_at?: string | null;
+}
+
+export interface DormHealth {
+  enabled: boolean;
+  authenticated: boolean;
 }

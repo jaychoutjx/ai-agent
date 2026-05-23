@@ -73,6 +73,18 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 10080
 
+    # ---------- 寝室群聊 RAG（私密功能，简单口令保护）----------
+    # 独立 Milvus collection：和"知识库"物理隔离
+    dorm_collection: str = "aikb_dorm_messages"
+    # 访问口令：在 .env 设 DORM_ACCESS_TOKEN=xxx 即可启用；为空时该功能关闭
+    dorm_access_token: str = Field(default="", description="寝室模式访问口令；为空则该功能整体关闭")
+    # 群聊数据归属人（用于第一人称视角）
+    dorm_owner_name: str = Field(default="叶湘伦jay", description="数据归属人，用于'我'的指代")
+    # 时间窗口：N 分钟内的消息聚合成一个会话块
+    dorm_session_gap_minutes: int = 30
+    # 单个会话块最多包含 N 条消息（避免超长）
+    dorm_max_msgs_per_chunk: int = 30
+
     # ---------- 文件上传 ----------
     upload_dir: str = "./uploads"
     max_upload_size_mb: int = 50

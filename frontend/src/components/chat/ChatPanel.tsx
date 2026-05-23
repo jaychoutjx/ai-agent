@@ -1,14 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, MessageSquare, Sparkles, Trash2, Wrench } from "lucide-react";
+import {
+  BookOpen,
+  Home,
+  MessageSquare,
+  Sparkles,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { useChatStore } from "@/store/chat";
 import { useKnowledgeStore } from "@/store/knowledge";
+import { useDormStore } from "@/store/dorm";
 import { streamAgent, streamChat, streamRag } from "@/lib/api";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { KnowledgeSidebar } from "@/components/knowledge/KnowledgeSidebar";
 import { RagSettingsPanel } from "@/components/knowledge/RagSettings";
+import { DormPanel } from "@/components/dorm/DormPanel";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/types";
 
@@ -55,8 +64,23 @@ export function ChatPanel() {
   const documents = useKnowledgeStore((s) => s.documents);
   const ragSettings = useKnowledgeStore((s) => s.ragSettings);
 
+  const dormEnabled = useDormStore((s) => s.enabled);
+  const dormBootstrap = useDormStore((s) => s.bootstrap);
+
   const [showSidebar, setShowSidebar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 启动时探测 dorm 模式是否启用 + sessionStorage 里的 token 是否还有效
+  useEffect(() => {
+    void dormBootstrap();
+  }, [dormBootstrap]);
+
+  // 切到 dorm 模式时，清空当前对话，避免知识库的回答串到寝室面板
+  useEffect(() => {
+    if (mode === "dorm") {
+      clear();
+    }
+  }, [mode, clear]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -263,6 +287,21 @@ export function ChatPanel() {
                 <Wrench size={12} />
                 Agent
               </button>
+              {dormEnabled && (
+                <button
+                  onClick={() => setMode("dorm")}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded px-2.5 py-1 text-xs transition sm:px-3",
+                    mode === "dorm"
+                      ? "bg-white text-rose-600 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900",
+                  )}
+                  title="寝室群聊问答（私密功能）"
+                >
+                  <Home size={12} />
+                  寝室
+                </button>
+              )}
             </div>
 
             {isRag && <RagSettingsPanel />}
@@ -311,6 +350,10 @@ export function ChatPanel() {
           </div>
         )}
 
+        {/* 寝室模式：完全独立的面板，自带子模式切换、口令遮罩、统计等 */}
+        {mode === "dorm" ? (
+          <DormPanel />
+        ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {showWelcome ? (
             <div className="flex h-full flex-col items-center justify-center px-4 py-6 text-center">
@@ -359,12 +402,15 @@ export function ChatPanel() {
             </div>
           )}
         </div>
+        )}
 
-        <ChatInput
-          onSend={handleSend}
-          onStop={abort}
-          isGenerating={isGenerating}
-        />
+        {mode !== "dorm" && (
+          <ChatInput
+            onSend={handleSend}
+            onStop={abort}
+            isGenerating={isGenerating}
+          />
+        )}
       </div>
     </div>
   );

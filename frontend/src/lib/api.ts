@@ -18,8 +18,35 @@ import type {
   Citation,
   DocumentListResponse,
   DocumentMeta,
+  DormCitation,
+  DormHealth,
+  DormImitateRequest,
+  DormQueryRequest,
+  DormStats,
+  DormSummaryRequest,
   RagQueryRequest,
 } from "./types";
+
+// 浏览器 sessionStorage 存的寝室访问 token（关闭浏览器即失效）
+const DORM_TOKEN_KEY = "dorm-access-token";
+
+export function getDormToken(): string {
+  if (typeof window === "undefined") return "";
+  return window.sessionStorage.getItem(DORM_TOKEN_KEY) || "";
+}
+
+export function setDormToken(token: string): void {
+  if (typeof window === "undefined") return;
+  if (token) window.sessionStorage.setItem(DORM_TOKEN_KEY, token);
+  else window.sessionStorage.removeItem(DORM_TOKEN_KEY);
+}
+
+function dormHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getDormToken();
+  if (token) headers["X-Dorm-Token"] = token;
+  return headers;
+}
 
 class FatalError extends Error {}
 class RetriableError extends Error {}
@@ -312,6 +339,162 @@ export async function streamAgent(
         throw err;
       }
       cb.onError(err);
+      throw err;
+    },
+
+    onclose() {
+      cb.onDone();
+    },
+  });
+}
+
+// ============================================================
+// 寝室群聊 RAG（私密功能，需 X-Dorm-Token）
+// ============================================================
+
+interface DormStreamCallbacks {
+  onCitations?: (citations: DormCitation[]) => void;
+  onContent: (chunk: string) => void;
+  onDone: () => void;
+  onError: (err: Error) => void;
+}
+
+/**
+ * 探测后端是否启用了 dorm 模式 + 当前 token 是否有效。
+ * 返回 enabled=false 表示后端整体没开启此功能（前端入口隐藏）。
+ */
+export async function dormHealthCheck(): Promise<DormHealth> {
+  try {
+    const res = await fetch(`${config.apiBaseUrl}/api/v1/dorm/health`, {
+      headers: dormHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) return { enabled: false, authenticated: false };
+    return await res.json();
+  } catch {
+    return { enabled: false, authenticated: false };
+  }
+}
+
+export async function dormStats(): Promise<DormStats> {
+  const res = await fetch(`${config.apiBaseUrl}/api/v1/dorm/stats`, {
+    headers: dormHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(typeof err.detail === "string" ? err.detail : "获取统计失败");
+  }
+  return res.json();
+}
+
+export async function streamDormQuery(
+  req: DormQueryRequest,
+  signal: AbortSignal,
+  cb: DormStreamCallbacks,
+): Promise<void> {
+  await fetchEventSource(`${config.apiBaseUrl}/api/v1/dorm/query/stream`, {
+    method: "POST",
+    headers: dormHeaders({
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    }),
+    body: JSON.stringify(req),
+    signal,
+    openWhenHidden: true,
+
+    async onopen(res) {
+      if (res.ok && res.headers.get("content-type")?.includes("text/event-stream")) return;
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        throw new FatalError(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      throw new RetriableError(`HTTP ${res.status}`);
+    },
+
+    onmessage(ev) {
+      if (ev.data === "[DONE]") {
+        cb.onDone();
+        return;
+      }
+      try {
+        const payload = JSON.parse(ev.data);
+        if (payload.type === "citations") cb.onCitations?.(payload.citations ?? []);
+        else if (payload.type === "content") cb.onContent(payload.content ?? "");
+        else if (payload.type === "error")
+          cb.onError(new Error(payload.error ?? "Unknown error"));
+      } catch {
+        /* 容错 */
+      }
+    },
+
+    onerror(err) {
+      cb.onError(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    },
+
+    onclose() {
+      cb.onDone();
+    },
+  });
+}
+
+export async function dormSummary(req: DormSummaryRequest): Promise<{
+  report: string;
+  range: string;
+  end_date: string | null;
+}> {
+  const res = await fetch(`${config.apiBaseUrl}/api/v1/dorm/summary`, {
+    method: "POST",
+    headers: dormHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(typeof err.detail === "string" ? err.detail : "总结生成失败");
+  }
+  return res.json();
+}
+
+export async function streamDormImitate(
+  req: DormImitateRequest,
+  signal: AbortSignal,
+  cb: Pick<DormStreamCallbacks, "onContent" | "onDone" | "onError">,
+): Promise<void> {
+  await fetchEventSource(`${config.apiBaseUrl}/api/v1/dorm/imitate/stream`, {
+    method: "POST",
+    headers: dormHeaders({
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    }),
+    body: JSON.stringify(req),
+    signal,
+    openWhenHidden: true,
+
+    async onopen(res) {
+      if (res.ok && res.headers.get("content-type")?.includes("text/event-stream")) return;
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        throw new FatalError(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      throw new RetriableError(`HTTP ${res.status}`);
+    },
+
+    onmessage(ev) {
+      if (ev.data === "[DONE]") {
+        cb.onDone();
+        return;
+      }
+      try {
+        const payload = JSON.parse(ev.data);
+        if (payload.type === "content") cb.onContent(payload.content ?? "");
+        else if (payload.type === "error")
+          cb.onError(new Error(payload.error ?? "Unknown error"));
+      } catch {
+        /* 容错 */
+      }
+    },
+
+    onerror(err) {
+      cb.onError(err instanceof Error ? err : new Error(String(err)));
       throw err;
     },
 
