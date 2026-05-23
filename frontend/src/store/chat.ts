@@ -5,6 +5,17 @@
  * - 比 Redux 简单 10 倍，没有 reducer/action/dispatch 模板代码
  * - 比 Context 性能好，组件只订阅自己关心的字段，避免无关重渲染
  * - 体积小（<1kb），React 19 完美适配
+ *
+ * ─── 打字机流式渲染 ────────────────────────────────────────────
+ * 后端 SSE 每个 chunk 不一定是单字（可能是一段，或者经过 Vercel rewrites
+ * 反向代理后被聚合成大块），如果直接 append 会出现"一段一段"跳出来的
+ * 视觉效果。我们引入一个 pendingBuffer + 定时器，把后端推过来的内容
+ * 切成"逐字流"渲染：
+ *   1. 后端 chunk 追加到 pendingBuffer
+ *   2. 定时器（默认 ~25ms）从 buffer 取若干字符并 commit 到 message.content
+ *   3. 速度自适应：buffer 堆积越多，每 tick 取的字符越多（避免长回答慢吞吞）
+ *   4. 流结束时 flush 整个 buffer，避免丢字
+ * ─────────────────────────────────────────────────────────────
  */
 
 import { create } from "zustand";
@@ -14,6 +25,10 @@ interface ChatState {
   messages: ChatMessage[];
   isGenerating: boolean;
   abortController: AbortController | null;
+  /** 待"打字机"输出的缓冲区（按 message id 分组） */
+  pendingBuffer: string;
+  /** 打字机定时器句柄 */
+  typewriterTimer: ReturnType<typeof setInterval> | null;
 
   addMessage: (msg: ChatMessage) => void;
   appendToLastAssistant: (chunk: string) => void;
@@ -27,26 +42,62 @@ interface ChatState {
   clear: () => void;
 }
 
+// 打字机参数
+const TYPEWRITER_INTERVAL_MS = 25; // 每 25ms 推一次（约 40fps）
+const TYPEWRITER_MIN_CHARS = 1; // 每次至少推 1 字
+const TYPEWRITER_MAX_CHARS = 8; // 堆积太多时，每次最多推 8 字（防止落后太远）
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isGenerating: false,
   abortController: null,
+  pendingBuffer: "",
+  typewriterTimer: null,
 
   addMessage: (msg) =>
     set((state) => ({ messages: [...state.messages, msg] })),
 
-  appendToLastAssistant: (chunk) =>
-    set((state) => {
-      const messages = [...state.messages];
-      const last = messages[messages.length - 1];
-      if (last && last.role === "assistant") {
-        messages[messages.length - 1] = {
-          ...last,
-          content: last.content + chunk,
-        };
-      }
-      return { messages };
-    }),
+  /**
+   * 把后端流式 chunk 入队 + 启动定时器逐字渲染（打字机效果）。
+   * 后端可能一次给一个字，也可能给一大段；前端统一按"字符流"输出，体验更顺滑。
+   */
+  appendToLastAssistant: (chunk) => {
+    if (!chunk) return;
+    set((state) => ({ pendingBuffer: state.pendingBuffer + chunk }));
+
+    if (get().typewriterTimer) return;
+
+    const timer = setInterval(() => {
+      const { pendingBuffer } = get();
+      if (!pendingBuffer) return;
+
+      // 自适应步长：buffer 堆积越多，吃得越快
+      const len = pendingBuffer.length;
+      const step =
+        len > 200
+          ? TYPEWRITER_MAX_CHARS
+          : len > 50
+            ? Math.min(TYPEWRITER_MAX_CHARS, Math.ceil(len / 25))
+            : TYPEWRITER_MIN_CHARS;
+
+      const take = pendingBuffer.slice(0, step);
+      const rest = pendingBuffer.slice(step);
+
+      set((state) => {
+        const messages = [...state.messages];
+        const last = messages[messages.length - 1];
+        if (last && last.role === "assistant") {
+          messages[messages.length - 1] = {
+            ...last,
+            content: last.content + take,
+          };
+        }
+        return { messages, pendingBuffer: rest };
+      });
+    }, TYPEWRITER_INTERVAL_MS);
+
+    set({ typewriterTimer: timer });
+  },
 
   setLastAssistantCitations: (citations) =>
     set((state) => {
@@ -94,15 +145,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { messages };
     }),
 
-  finalizeLastAssistant: () =>
+  /**
+   * 流结束：先 flush 缓冲区里剩余的字到 message.content，再停定时器、关 streaming。
+   * 不能直接 set streaming=false，否则用户会看到内容"突然停在半句"。
+   */
+  finalizeLastAssistant: () => {
+    const { pendingBuffer, typewriterTimer } = get();
+
     set((state) => {
       const messages = [...state.messages];
       const last = messages[messages.length - 1];
       if (last && last.role === "assistant") {
-        messages[messages.length - 1] = { ...last, streaming: false };
+        messages[messages.length - 1] = {
+          ...last,
+          content: last.content + pendingBuffer,
+          streaming: false,
+        };
       }
-      return { messages };
-    }),
+      return { messages, pendingBuffer: "" };
+    });
+
+    if (typewriterTimer) {
+      clearInterval(typewriterTimer);
+      set({ typewriterTimer: null });
+    }
+  },
 
   setGenerating: (v) => set({ isGenerating: v }),
   setAbortController: (c) => set({ abortController: c }),
@@ -110,8 +177,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   abort: () => {
     const c = get().abortController;
     if (c) c.abort();
-    set({ isGenerating: false, abortController: null });
+    const { typewriterTimer } = get();
+    if (typewriterTimer) clearInterval(typewriterTimer);
+    set({
+      isGenerating: false,
+      abortController: null,
+      typewriterTimer: null,
+      pendingBuffer: "",
+    });
   },
 
-  clear: () => set({ messages: [], isGenerating: false }),
+  clear: () => {
+    const { typewriterTimer } = get();
+    if (typewriterTimer) clearInterval(typewriterTimer);
+    set({
+      messages: [],
+      isGenerating: false,
+      typewriterTimer: null,
+      pendingBuffer: "",
+    });
+  },
 }));

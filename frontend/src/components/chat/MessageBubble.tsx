@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { Bot, Loader2, User } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, stripCitationMarkers } from "@/lib/utils";
 import { Citations } from "./Citations";
 import { AgentTrace } from "./AgentTrace";
 import type { ChatMessage } from "@/lib/types";
@@ -91,7 +91,7 @@ export function MessageBubble({ message }: Props) {
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeHighlight]}
               >
-                {message.content}
+                {stripCitationMarkers(message.content)}
               </ReactMarkdown>
               {message.streaming && message.content && (
                 <span className="inline-block animate-pulse">▍</span>
