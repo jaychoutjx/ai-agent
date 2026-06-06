@@ -25,6 +25,7 @@ import type {
   DormStats,
   DormSummaryRequest,
   RagQueryRequest,
+  SolveRequest,
 } from "./types";
 
 // 浏览器 sessionStorage 存的寝室访问 token（关闭浏览器即失效）
@@ -453,6 +454,72 @@ export async function dormSummary(req: DormSummaryRequest): Promise<{
     throw new Error(typeof err.detail === "string" ? err.detail : "总结生成失败");
   }
   return res.json();
+}
+
+// ============================================================
+// 拍照搜题（多模态解题，流式）
+// ============================================================
+
+/**
+ * 上传题目图片，流式返回识别 + 答案 + 解题步骤。
+ *
+ * SSE 事件序列：
+ *   data: {"type":"content","content":"..."}
+ *   data: [DONE]
+ */
+export async function streamSolve(
+  req: SolveRequest,
+  signal: AbortSignal,
+  cb: StreamCallbacks,
+): Promise<void> {
+  await fetchEventSource(`${config.apiBaseUrl}/api/v1/solve/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(req),
+    signal,
+    openWhenHidden: true,
+
+    async onopen(res) {
+      if (res.ok && res.headers.get("content-type")?.includes("text/event-stream")) {
+        return;
+      }
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        throw new FatalError(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      throw new RetriableError(`HTTP ${res.status}`);
+    },
+
+    onmessage(ev) {
+      if (ev.data === "[DONE]") {
+        cb.onDone();
+        return;
+      }
+      try {
+        const payload = JSON.parse(ev.data);
+        if (payload.type === "content") cb.onContent(payload.content ?? "");
+        else if (payload.type === "error")
+          cb.onError(new Error(payload.error ?? "Unknown error"));
+      } catch {
+        /* 容错 */
+      }
+    },
+
+    onerror(err) {
+      if (err instanceof FatalError) {
+        cb.onError(err);
+        throw err;
+      }
+      cb.onError(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    },
+
+    onclose() {
+      cb.onDone();
+    },
+  });
 }
 
 export async function streamDormImitate(

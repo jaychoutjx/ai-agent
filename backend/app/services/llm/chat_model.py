@@ -67,6 +67,43 @@ def get_chat_model(
 
 
 @lru_cache(maxsize=2)
+def get_vision_model(
+    temperature: float = 0.2,
+    max_tokens: int = 2048,
+    streaming: bool = True,
+) -> ChatOpenAI:
+    """
+    获取多模态视觉模型（Qwen-VL 系列），用于"拍照搜题"等图片理解场景。
+
+    用法：传入包含 image_url 的多模态 HumanMessage 即可，
+    DashScope 兼容模式支持 OpenAI 的 image_url（含 base64 data URI）格式。
+
+    Args:
+        temperature: 解题场景建议低温度（0.1-0.3）以保证准确性
+        max_tokens: 解题步骤可能较长，默认放宽
+        streaming: 前端打字机效果需开启
+    """
+    if not settings.dashscope_api_key or settings.dashscope_api_key.startswith("sk-your"):
+        logger.warning("⚠️  DashScope API Key 未配置，请到 .env 中填写 DASHSCOPE_API_KEY")
+
+    logger.info(
+        f"初始化 VisionModel: model={settings.qwen_vl_model}, "
+        f"temperature={temperature}, streaming={streaming}"
+    )
+
+    return ChatOpenAI(
+        model=settings.qwen_vl_model,
+        api_key=settings.dashscope_api_key,
+        base_url=settings.dashscope_base_url,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        streaming=streaming,
+        timeout=90,
+        max_retries=3,
+    )
+
+
+@lru_cache(maxsize=2)
 def get_reasoner_model(streaming: bool = True) -> ChatOpenAI:
     """
     获取深度推理模型（QwQ-Plus / Qwen 推理版）。

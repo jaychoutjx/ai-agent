@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # 各场景模型
     qwen_chat_model: str = "qwen-plus"
     qwen_reasoner_model: str = "qwq-plus"
+    qwen_vl_model: str = "qwen-vl-max"  # 多模态视觉模型（拍照搜题用）
     qwen_embedding_model: str = "text-embedding-v3"
     qwen_reranker_model: str = "gte-rerank-v2"
 

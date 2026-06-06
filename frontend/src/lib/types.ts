@@ -4,7 +4,28 @@
 
 export type Role = "user" | "assistant" | "system";
 
-export type ChatMode = "chat" | "rag" | "agent" | "dorm";
+export type ChatMode = "chat" | "rag" | "agent" | "dorm" | "solve";
+
+// ========== 拍照搜题 ==========
+export type SolveSubject =
+  | "auto"
+  | "math"
+  | "physics"
+  | "chemistry"
+  | "biology"
+  | "english"
+  | "chinese"
+  | "history"
+  | "geography"
+  | "politics"
+  | "other";
+
+export interface SolveRequest {
+  image_base64: string;
+  subject?: SolveSubject;
+  extra?: string | null;
+  stream?: boolean;
+}
 
 export interface AgentToolCall {
   id: string;

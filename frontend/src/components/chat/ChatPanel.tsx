@@ -5,6 +5,7 @@ import {
   BookOpen,
   Home,
   MessageSquare,
+  ScanText,
   Sparkles,
   Trash2,
   Wrench,
@@ -18,6 +19,7 @@ import { ChatInput } from "./ChatInput";
 import { KnowledgeSidebar } from "@/components/knowledge/KnowledgeSidebar";
 import { RagSettingsPanel } from "@/components/knowledge/RagSettings";
 import { DormPanel } from "@/components/dorm/DormPanel";
+import { SolvePanel } from "@/components/solve/SolvePanel";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/types";
 
@@ -287,6 +289,19 @@ export function ChatPanel() {
                 <Wrench size={12} />
                 Agent
               </button>
+              <button
+                onClick={() => setMode("solve")}
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded px-2.5 py-1 text-xs transition sm:px-3",
+                  mode === "solve"
+                    ? "bg-white text-sky-600 shadow-sm"
+                    : "text-gray-600 hover:text-gray-900",
+                )}
+                title="拍照搜题"
+              >
+                <ScanText size={12} />
+                搜题
+              </button>
               {dormEnabled && (
                 <button
                   onClick={() => setMode("dorm")}
@@ -353,6 +368,8 @@ export function ChatPanel() {
         {/* 寝室模式：完全独立的面板，自带子模式切换、口令遮罩、统计等 */}
         {mode === "dorm" ? (
           <DormPanel />
+        ) : mode === "solve" ? (
+          <SolvePanel />
         ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {showWelcome ? (
@@ -404,7 +421,7 @@ export function ChatPanel() {
         </div>
         )}
 
-        {mode !== "dorm" && (
+        {mode !== "dorm" && mode !== "solve" && (
           <ChatInput
             onSend={handleSend}
             onStop={abort}

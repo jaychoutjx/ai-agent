@@ -2,7 +2,9 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import { Bot, Loader2, User } from "lucide-react";
 import { cn, stripCitationMarkers } from "@/lib/utils";
 import { Citations } from "./Citations";
@@ -10,6 +12,7 @@ import { AgentTrace } from "./AgentTrace";
 import type { ChatMessage } from "@/lib/types";
 
 import "highlight.js/styles/github-dark.css";
+import "katex/dist/katex.min.css";
 
 interface Props {
   message: ChatMessage;
@@ -88,8 +91,8 @@ export function MessageBubble({ message }: Props) {
           ) : (
             <div className="prose prose-sm max-w-none break-words">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex, rehypeHighlight]}
               >
                 {stripCitationMarkers(message.content)}
               </ReactMarkdown>
